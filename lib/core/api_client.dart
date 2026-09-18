@@ -43,4 +43,71 @@ class ApiClient {
       throw ApiException('Omborlarni yuklashda xatolik');
     }
   }
+
+  Future<List<dynamic>> getCategories(String token) async {
+    try {
+      final response = await _dio.get(
+        '/product-categories',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw ApiException('Sessiya muddati tugagan, qaytadan kiring');
+      }
+      throw ApiException('Kategoriyalarni yuklashda xatolik');
+    }
+  }
+
+  Future<List<dynamic>> getProducts(
+    String token, {
+    int? categoryId,
+    String? search,
+  }) async {
+    try {
+      final query = <String, dynamic>{};
+      if (categoryId != null) query['category_id'] = categoryId;
+      if (search != null && search.isNotEmpty) query['search'] = search;
+      final response = await _dio.get(
+        '/products',
+        queryParameters: query.isEmpty ? null : query,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw ApiException('Sessiya muddati tugagan, qaytadan kiring');
+      }
+      throw ApiException('Mahsulotlarni yuklashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> createProduct(
+    String token,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/products',
+        data: body,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw ApiException('Sessiya muddati tugagan, qaytadan kiring');
+      }
+      final details = e.response?.data?['details'];
+      if (e.response?.statusCode == 400 && details is List && details.isNotEmpty) {
+        throw ApiException(details.join(', '));
+      }
+      throw ApiException('Mahsulotni saqlashda xatolik');
+    }
+  }
 }

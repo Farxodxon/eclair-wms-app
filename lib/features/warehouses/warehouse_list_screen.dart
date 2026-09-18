@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/products/product_list_screen.dart';
 
 final warehousesProvider = FutureProvider<List<dynamic>>((ref) {
   final auth = ref.watch(authProvider);
@@ -21,6 +22,17 @@ class WarehouseListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Omborlar'),
         actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProductListScreen()),
+            ),
+            icon: const Icon(Icons.inventory_2, color: Colors.white),
+            label: const Text(
+              'Mahsulotlar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
           TextButton.icon(
             onPressed: () => ref.read(authProvider.notifier).logout(),
             icon: const Icon(Icons.logout, color: Colors.white),
