@@ -113,7 +113,7 @@ class _ZonesTab extends ConsumerWidget {
             child: FilledButton.icon(
               onPressed: () => _addZone(context, ref),
               icon: const Icon(Icons.add),
-              label: const Text("+ Zona qo'shish"),
+              label: const Text("Zona qo'shish"),
             ),
           ),
         ),
@@ -300,7 +300,7 @@ class _LocationsTab extends ConsumerWidget {
             child: FilledButton.icon(
               onPressed: () => _addLocation(context, ref),
               icon: const Icon(Icons.add),
-              label: const Text("+ Joylashuv qo'shish"),
+              label: const Text("Joylashuv qo'shish"),
             ),
           ),
         ),

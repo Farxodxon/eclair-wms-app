@@ -117,7 +117,7 @@ class ProductDetailScreen extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: () => _addBatch(context, ref),
                   icon: const Icon(Icons.add),
-                  label: const Text("+ Partiya"),
+                  label: const Text("Partiya"),
                 ),
               ],
             ),
