@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/products/product_detail_screen.dart';
 import 'package:wms_app/features/products/product_form_screen.dart';
 
 final productCategoryFilterProvider = StateProvider<int?>((ref) => null);
@@ -139,6 +140,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                       subtitle: categoryName != null
                           ? Text('${product['unit'] ?? ''} | $categoryName')
                           : Text('${product['unit'] ?? ''}'),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailScreen(product: product),
+                        ),
+                      ),
                     );
                   },
                 );

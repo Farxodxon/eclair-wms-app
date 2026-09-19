@@ -15,6 +15,13 @@ class AuthState {
     this.user,
     this.error,
   });
+
+  String? get role => user?['role'] as String?;
+
+  bool get canAdjust {
+    final r = role;
+    return r == 'super_admin' || r == 'warehouse_manager';
+  }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {

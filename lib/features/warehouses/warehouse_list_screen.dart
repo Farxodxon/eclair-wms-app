@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
+import 'package:wms_app/features/warehouses/warehouse_detail_screen.dart';
 
 final warehousesProvider = FutureProvider<List<dynamic>>((ref) {
   final auth = ref.watch(authProvider);
@@ -69,6 +70,12 @@ class WarehouseListScreen extends ConsumerWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.blueGrey,
+                  ),
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WarehouseDetailScreen(warehouse: wh),
                   ),
                 ),
               );
