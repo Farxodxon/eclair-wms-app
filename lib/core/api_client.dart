@@ -366,4 +366,35 @@ class ApiClient {
       throw _handleError(e, fallback: 'Harakatlar tarixini yuklashda xatolik');
     }
   }
+
+  Future<Map<String, dynamic>> getExpiringBatches(
+    String token, {
+    int days = 30,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/alerts/expiring-batches',
+        queryParameters: {'days': days},
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Ogohlantirishlarni yuklashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> getAlertsSummary(String token) async {
+    try {
+      final response = await _dio.get(
+        '/alerts/summary',
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(
+        e,
+        fallback: "Ogohlantirishlar yig'indisini yuklashda xatolik",
+      );
+    }
+  }
 }

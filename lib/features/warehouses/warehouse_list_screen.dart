@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
+import 'package:wms_app/features/alerts/expiring_batches_screen.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
 import 'package:wms_app/features/scanner/scan_screen.dart';
@@ -13,12 +14,35 @@ final warehousesProvider = FutureProvider<List<dynamic>>((ref) {
       : Future.value([]);
 });
 
+final alertsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) {
+  final auth = ref.watch(authProvider);
+  return auth.token != null
+      ? ApiClient().getAlertsSummary(auth.token!)
+      : Future.value(const <String, dynamic>{});
+});
+
 class WarehouseListScreen extends ConsumerWidget {
   const WarehouseListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final warehousesAsync = ref.watch(warehousesProvider);
+    final summaryAsync = ref.watch(alertsSummaryProvider);
+    final summary = summaryAsync.valueOrNull;
+    final badgeCount =
+        (((summary?['expired_count'] as num?) ?? 0) +
+            ((summary?['critical_count'] as num?) ?? 0))
+            .toInt();
+
+    Future<void> openAlerts() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ExpiringBatchesScreen()),
+      );
+      if (context.mounted) {
+        ref.invalidate(alertsSummaryProvider);
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -26,6 +50,19 @@ class WarehouseListScreen extends ConsumerWidget {
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: const Text('Omborlar'),
         actions: [
+          IconButton(
+            tooltip: 'Ogohlantirishlar',
+            onPressed: openAlerts,
+            icon: badgeCount > 0
+                ? Badge(
+                    label: Text('$badgeCount'),
+                    child: const Icon(
+                      Icons.notifications,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.notifications, color: Colors.white),
+          ),
           IconButton(
             tooltip: 'Skaner',
             onPressed: () => Navigator.push(
