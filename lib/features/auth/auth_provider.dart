@@ -22,6 +22,8 @@ class AuthState {
     final r = role;
     return r == 'super_admin' || r == 'warehouse_manager';
   }
+
+  bool get canManageQuality => canAdjust;
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {

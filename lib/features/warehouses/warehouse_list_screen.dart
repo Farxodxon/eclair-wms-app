@@ -4,6 +4,7 @@ import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/alerts/expiring_batches_screen.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
+import 'package:wms_app/features/quality/quality_pending_screen.dart';
 import 'package:wms_app/features/scanner/scan_screen.dart';
 import 'package:wms_app/features/warehouses/warehouse_detail_screen.dart';
 
@@ -33,6 +34,8 @@ class WarehouseListScreen extends ConsumerWidget {
         (((summary?['expired_count'] as num?) ?? 0) +
             ((summary?['critical_count'] as num?) ?? 0))
             .toInt();
+    final pendingAsync = ref.watch(qualityPendingProvider);
+    final pendingCount = pendingAsync.valueOrNull?.length ?? 0;
 
     Future<void> openAlerts() async {
       await Navigator.push(
@@ -41,6 +44,16 @@ class WarehouseListScreen extends ConsumerWidget {
       );
       if (context.mounted) {
         ref.invalidate(alertsSummaryProvider);
+      }
+    }
+
+    Future<void> openQuality() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const QualityPendingScreen()),
+      );
+      if (context.mounted) {
+        ref.invalidate(qualityPendingProvider);
       }
     }
 
@@ -62,6 +75,19 @@ class WarehouseListScreen extends ConsumerWidget {
                     ),
                   )
                 : const Icon(Icons.notifications, color: Colors.white),
+          ),
+          IconButton(
+            tooltip: 'Sifat tekshiruvi',
+            onPressed: openQuality,
+            icon: pendingCount > 0
+                ? Badge(
+                    label: Text('$pendingCount'),
+                    child: const Icon(
+                      Icons.verified,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.verified, color: Colors.white),
           ),
           IconButton(
             tooltip: 'Skaner',

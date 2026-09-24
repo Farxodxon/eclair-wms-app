@@ -51,6 +51,8 @@ class ApiClient {
           return ApiException('Bunday shtrix-kodli konteyner mavjud');
         case 'sku_already_exists':
           return ApiException('Bunday SKU allaqachon mavjud');
+        case 'invalid_transition':
+          return ApiException("Bu partiya bu holatga o'tkazilmaydi");
       }
     }
     return ApiException(fallback);
@@ -395,6 +397,48 @@ class ApiClient {
         e,
         fallback: "Ogohlantirishlar yig'indisini yuklashda xatolik",
       );
+    }
+  }
+
+  Future<List<dynamic>> getQualityPending(String token) async {
+    try {
+      final response = await _dio.get(
+        '/quality/pending',
+        options: _authOptions(token),
+      );
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Navbatni yuklashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> setQualityStatus(
+    String token,
+    int batchId,
+    String status,
+    String note,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/batches/$batchId/quality-status',
+        data: {'status': status, 'note': note},
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Holatni yangilashda xatolik');
+    }
+  }
+
+  Future<List<dynamic>> getQualityHistory(String token, int batchId) async {
+    try {
+      final response = await _dio.get(
+        '/batches/$batchId/quality-history',
+        options: _authOptions(token),
+      );
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Tarixni yuklashda xatolik');
     }
   }
 }
