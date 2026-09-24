@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
+import 'package:wms_app/features/scanner/scan_screen.dart';
 import 'package:wms_app/features/warehouses/warehouse_detail_screen.dart';
 
 final warehousesProvider = FutureProvider<List<dynamic>>((ref) {
@@ -25,6 +26,14 @@ class WarehouseListScreen extends ConsumerWidget {
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: const Text('Omborlar'),
         actions: [
+          IconButton(
+            tooltip: 'Skaner',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ScanScreen()),
+            ),
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          ),
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,

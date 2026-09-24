@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ilova shtrix kodlarni skanerlash uchun kameradan foydalanadi</string>
 </dict>
 </plist>

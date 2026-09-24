@@ -267,6 +267,38 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>?> getContainerByBarcode(
+    String token,
+    String barcode,
+  ) async {
+    try {
+      final response = await _dio.get(
+        '/containers/barcode/$barcode',
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _handleError(e, fallback: 'Konteynerni qidirishda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getProductByBarcode(
+    String token,
+    String barcode,
+  ) async {
+    try {
+      final response = await _dio.get(
+        '/products/barcode/$barcode',
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _handleError(e, fallback: 'Mahsulotni qidirishda xatolik');
+    }
+  }
+
   Future<Map<String, dynamic>> inventoryOut(
     String token,
     Map<String, dynamic> body,
