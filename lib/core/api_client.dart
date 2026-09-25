@@ -62,6 +62,57 @@ class ApiClient {
     return Options(headers: {'Authorization': 'Bearer $token'});
   }
 
+  Options _authBytesOptions(String token) {
+    return Options(
+      headers: {'Authorization': 'Bearer $token'},
+      responseType: ResponseType.bytes,
+    );
+  }
+
+  Future<List<int>> getStockReportBytes(String token, {int? warehouseId}) async {
+    try {
+      final query = <String, dynamic>{};
+      if (warehouseId != null) query['warehouse_id'] = warehouseId;
+      final response = await _dio.get(
+        '/reports/stock.xlsx',
+        queryParameters: query.isEmpty ? null : query,
+        options: _authBytesOptions(token),
+      );
+      return response.data as List<int>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: "Qoldiq hisobotini yuklashda xatolik");
+    }
+  }
+
+  Future<List<int>> getTransactionsReportBytes(
+    String token, {
+    required DateTime from,
+    required DateTime to,
+    int? warehouseId,
+  }) async {
+    try {
+      final query = <String, dynamic>{
+        'from': _isoDate(from),
+        'to': _isoDate(to),
+      };
+      if (warehouseId != null) query['warehouse_id'] = warehouseId;
+      final response = await _dio.get(
+        '/reports/transactions.xlsx',
+        queryParameters: query,
+        options: _authBytesOptions(token),
+      );
+      return response.data as List<int>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: "Harakatlar hisobotini yuklashda xatolik");
+    }
+  }
+
+  String _isoDate(DateTime d) {
+    final month = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '${d.year.toString().padLeft(4, '0')}-$month-$day';
+  }
+
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await _dio.post(

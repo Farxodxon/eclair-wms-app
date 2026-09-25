@@ -5,6 +5,7 @@ import 'package:wms_app/features/alerts/expiring_batches_screen.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
 import 'package:wms_app/features/quality/quality_pending_screen.dart';
+import 'package:wms_app/features/reports/reports_screen.dart';
 import 'package:wms_app/features/scanner/scan_screen.dart';
 import 'package:wms_app/features/warehouses/warehouse_detail_screen.dart';
 
@@ -36,6 +37,7 @@ class WarehouseListScreen extends ConsumerWidget {
             .toInt();
     final pendingAsync = ref.watch(qualityPendingProvider);
     final pendingCount = pendingAsync.valueOrNull?.length ?? 0;
+    final canManageReports = ref.watch(authProvider).canManageQuality;
 
     Future<void> openAlerts() async {
       await Navigator.push(
@@ -89,6 +91,15 @@ class WarehouseListScreen extends ConsumerWidget {
                   )
                 : const Icon(Icons.verified, color: Colors.white),
           ),
+          if (canManageReports)
+            IconButton(
+              tooltip: 'Hisobotlar',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportsScreen()),
+              ),
+              icon: const Icon(Icons.assessment, color: Colors.white),
+            ),
           IconButton(
             tooltip: 'Skaner',
             onPressed: () => Navigator.push(
