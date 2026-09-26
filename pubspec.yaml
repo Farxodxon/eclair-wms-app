@@ -34,6 +34,9 @@ dependencies:
   dio: ^5.8.0
   mobile_scanner: ^7.4.2
   path_provider: ^2.1.6
+  pdf: ^3.12.0
+  barcode: ^2.2.9
+  printing: ^5.14.3
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +59,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Unicode font for the PDF label generator. The built-in PDF base font
+  # (Helvetica) cannot render Cyrillic characters in captions.
+  assets:
+    - assets/fonts/Roboto-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

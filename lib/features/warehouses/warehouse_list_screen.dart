@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/alerts/expiring_batches_screen.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/labels/labels_home_screen.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
 import 'package:wms_app/features/quality/quality_pending_screen.dart';
 import 'package:wms_app/features/reports/reports_screen.dart';
@@ -107,6 +108,14 @@ class WarehouseListScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => const ScanScreen()),
             ),
             icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          ),
+          IconButton(
+            tooltip: 'Yorliqlar',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LabelsHomeScreen()),
+            ),
+            icon: const Icon(Icons.sell_outlined, color: Colors.white),
           ),
           TextButton.icon(
             onPressed: () => Navigator.push(
