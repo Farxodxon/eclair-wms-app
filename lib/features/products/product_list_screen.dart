@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/products/import/bulk_import_screen.dart';
 import 'package:wms_app/features/products/product_detail_screen.dart';
 import 'package:wms_app/features/products/product_form_screen.dart';
 
@@ -57,14 +58,31 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     }
   }
 
+  Future<void> _openImport() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BulkImportScreen()),
+    );
+    if (mounted) {
+      ref.invalidate(productsProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
+    final canManage = ref.watch(authProvider).canManageQuality;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mahsulotlar'),
         actions: [
+          if (canManage)
+            IconButton(
+              icon: const Icon(Icons.upload_file),
+              tooltip: 'Excel import',
+              onPressed: _openImport,
+            ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: "Qoshish",

@@ -37,6 +37,8 @@ dependencies:
   pdf: ^3.12.0
   barcode: ^2.2.9
   printing: ^5.14.3
+  excel: ^4.0.6
+  file_picker: ^10.3.3
 
 dev_dependencies:
   flutter_test:
