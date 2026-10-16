@@ -25,6 +25,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _barcodeController = TextEditingController();
   final _minStockController = TextEditingController();
   final _maxStockController = TextEditingController();
+  final _containerTypeController = TextEditingController();
+  final _unitWeightController = TextEditingController();
 
   int? _selectedCategoryId;
   Map<String, String> _textValues = {};
@@ -44,6 +46,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _barcodeController.dispose();
     _minStockController.dispose();
     _maxStockController.dispose();
+    _containerTypeController.dispose();
+    _unitWeightController.dispose();
     for (final c in _dynamicControllers.values) {
       c.dispose();
     }
@@ -198,6 +202,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final maxStock = _parseNum(_maxStockController.text);
     if (minStock != null) body['min_stock'] = minStock;
     if (maxStock != null) body['max_stock'] = maxStock;
+    final containerType = _containerTypeController.text.trim();
+    if (containerType.isNotEmpty) {
+      body['default_container_type'] = containerType;
+    }
+    final unitWeight = _parseNum(_unitWeightController.text);
+    if (unitWeight != null) body['default_unit_weight_kg'] = unitWeight;
 
     setState(() {
       _saving = true;
@@ -316,6 +326,44 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 labelText: 'Max zaxira (ixtiyoriy)',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Idish ma\'lumotlari',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Kirimda idish soni va 1 idish og\'irligi orqali jami kg '
+              'hisoblanadi.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _containerTypeController,
+              decoration: const InputDecoration(
+                labelText: 'Idish turi (ixtiyoriy)',
+                hintText: 'Qop, quti, palet...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _unitWeightController,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: '1 idish og\'irligi (kg, ixtiyoriy)',
+                hintText: 'Masalan: 25',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return null;
+                final parsed = _parseNum(v);
+                if (parsed == null || parsed <= 0) {
+                  return "Og'irlik 0 dan katta bo'lishi kerak";
+                }
+                return null;
+              },
             ),
             if (_currentSchema.isNotEmpty) ...[
               const SizedBox(height: 24),

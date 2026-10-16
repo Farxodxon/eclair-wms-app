@@ -7,8 +7,11 @@
 #include "generated_plugin_registrant.h"
 
 #include <printing/printing_plugin.h>
+#include <webview_all_windows/webview_all_windows_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   PrintingPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("PrintingPlugin"));
+  WebviewAllWindowsPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("WebviewAllWindowsPlugin"));
 }

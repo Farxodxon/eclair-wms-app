@@ -1,11 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/scanner/scan_result_screen.dart';
 
 enum _ScanPhase { scanning, checking, notFound }
+
+class _NoCameraPlaceholder extends StatelessWidget {
+  const _NoCameraPlaceholder({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.no_photography_outlined, size: 56),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Qayta urinish'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "yoki kodni qo'lda / USB skaner bilan kiriting",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
@@ -15,17 +58,62 @@ class ScanScreen extends ConsumerStatefulWidget {
 }
 
 class _ScanScreenState extends ConsumerState<ScanScreen> {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-  );
-
   _ScanPhase _phase = _ScanPhase.scanning;
   String? _lastBarcode;
   bool _handling = false;
 
+  ScannerController? _scannerController;
+  ScannerErrorCode? _cameraError;
+  int _scannerKey = 0;
+
+  final _manualController = TextEditingController();
+  final _manualFocus = FocusNode();
+
+  String get _cameraMessage {
+    switch (_cameraError) {
+      case ScannerErrorCode.cameraUnavailable:
+        return "Kamera topilmadi. Tashqi (USB) kamera ulab, "
+            "'Qayta urinish' tugmasini bosing.";
+      case ScannerErrorCode.permissionDenied:
+        return "Kameraga ruxsat yo'q. Ruxsat bering yoki "
+            "kodni qo'lda / USB skaner bilan kiriting.";
+      case ScannerErrorCode.alreadyActive:
+        return "Boshqa skaner ochiq.";
+      case ScannerErrorCode.invalidImage:
+      case ScannerErrorCode.unknown:
+      case null:
+        return "Kamera ishga tushirilmadi.";
+    }
+  }
+
+  void _submitManual() {
+    final value = _manualController.text.trim();
+    if (value.isEmpty) return;
+    _manualController.clear();
+    _lookupBarcode(value);
+  }
+
+  void _onCameraScanned(String value) {
+    if (value.isEmpty) return;
+    _lookupBarcode(value.trim());
+  }
+
+  void _onCameraError(ScannerException error) {
+    if (!mounted) return;
+    setState(() => _cameraError = error.code);
+  }
+
+  void _retryCamera() {
+    setState(() {
+      _cameraError = null;
+      _scannerKey++;
+    });
+  }
+
   @override
   void dispose() {
-    _controller.dispose();
+    _manualController.dispose();
+    _manualFocus.dispose();
     super.dispose();
   }
 
@@ -35,7 +123,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     if (value.isEmpty) return;
 
     _handling = true;
-    await _controller.stop();
+    await _scannerController?.pauseScanning();
     if (mounted) setState(() => _phase = _ScanPhase.checking);
 
     final auth = ref.read(authProvider);
@@ -93,47 +181,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _resetScanning() async {
     if (!mounted) return;
     setState(() => _phase = _ScanPhase.scanning);
-    await _controller.start();
+    if (_cameraError == null) {
+      await _scannerController?.resumeScanning();
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _manualFocus.requestFocus();
+    });
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && !_manualFocus.hasFocus) _manualFocus.requestFocus();
+    });
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
-    );
-  }
-
-  Widget _errorBuilder(BuildContext context, MobileScannerException error) {
-    final isPermission =
-        error.errorCode == MobileScannerErrorCode.permissionDenied;
-    return Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isPermission ? Icons.no_photography : Icons.error_outline,
-            size: 56,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isPermission
-                ? 'Kameraga ruxsat berilmagan, Tizim sozlamalaridan ruxsat bering'
-                : 'Kamera ishga tushirilmadi',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => _controller.start(),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Qayta urinish'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -145,38 +208,72 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: MobileScanner(
-                controller: _controller,
-                onDetect: (capture) {
-                  final barcodes = capture.barcodes;
-                  if (barcodes.isEmpty) return;
-                  final value = barcodes.first.rawValue;
-                  if (value == null || value.isEmpty) return;
-                  _lookupBarcode(value);
-                },
-                errorBuilder: _errorBuilder,
-              ),
+              child: _cameraError != null
+                  ? _NoCameraPlaceholder(
+                      message: _cameraMessage,
+                      onRetry: _retryCamera,
+                    )
+                  : UniversalBarcodeScanner(
+                      key: ValueKey<int>(_scannerKey),
+                      continuous: true,
+                      onCreated: (controller) {
+                        _scannerController = controller;
+                      },
+                      onScanned: _onCameraScanned,
+                      onError: _onCameraError,
+                    ),
             ),
-            if (_phase == _ScanPhase.scanning)
-              IgnorePointer(
-                child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(32),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Shtrix kodni kameraga tuting',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+            if (_phase == _ScanPhase.scanning && _cameraError == null)
+              Positioned(
+                top: 16,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Shtrix kodni kameraga tuting',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
                     ),
                   ),
                 ),
               ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(4),
+                child: TextField(
+                  controller: _manualController,
+                  focusNode: _manualFocus,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _submitManual(),
+                  decoration: InputDecoration(
+                    labelText: 'Kodni kiriting yoki USB skaner bilan o\'qing',
+                    prefixIcon: const Icon(Icons.keyboard),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: _submitManual,
+                    ),
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surface,
+                  ),
+                ),
+              ),
+            ),
             if (_phase == _ScanPhase.checking)
               const ColoredBox(
                 color: Colors.black54,

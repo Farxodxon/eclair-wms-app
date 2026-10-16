@@ -10,7 +10,13 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  final Dio _dio = Dio(BaseOptions(baseUrl: apiBaseUrl));
+  static final Dio _sharedDio = Dio(BaseOptions(baseUrl: apiBaseUrl));
+  final Dio _dio = _sharedDio;
+
+  /// Manzil o'zgarganda barcha ApiClient nusxalari yangisini ishlatadi.
+  static void setBaseUrl(String url) {
+    _sharedDio.options.baseUrl = url;
+  }
 
   ApiException _handleError(
     DioException e, {
@@ -128,6 +134,15 @@ class ApiClient {
     }
   }
 
+  Future<List<dynamic>> getPublicStockSummary() async {
+    try {
+      final response = await _dio.get('/public/stock-summary');
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Qoldiqlarni yuklashda xatolik');
+    }
+  }
+
   Future<List<dynamic>> getWarehouses(String token) async {
     try {
       final response = await _dio.get('/warehouses', options: _authOptions(token));
@@ -169,6 +184,18 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getProduct(String token, int id) async {
+    try {
+      final response = await _dio.get(
+        '/products/$id',
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Mahsulotni yuklashda xatolik');
+    }
+  }
+
   Future<Map<String, dynamic>> createProduct(
     String token,
     Map<String, dynamic> body,
@@ -182,6 +209,53 @@ class ApiClient {
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleError(e, fallback: 'Mahsulotni saqlashda xatolik');
+    }
+  }
+
+  Future<List<dynamic>> getWarehouseUsers(String token, int warehouseId) async {
+    try {
+      final response = await _dio.get(
+        '/warehouses/$warehouseId/users',
+        options: _authOptions(token),
+      );
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Xodimlarni yuklashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> createOperator(
+    String token,
+    int warehouseId,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/warehouses/$warehouseId/operators',
+        data: body,
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Operatorni saqlashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateOperator(
+    String token,
+    int warehouseId,
+    int userId,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/warehouses/$warehouseId/operators/$userId',
+        data: body,
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Operatorni yangilashda xatolik');
     }
   }
 

@@ -74,7 +74,17 @@ class _ContainerLabelsScreenState extends ConsumerState<ContainerLabelsScreen> {
       if (!_selected.contains(container['id'])) continue;
       final barcode = (container['container_barcode'] ?? '').toString();
       if (barcode.isEmpty) continue;
-      items.add(LabelItem(code: barcode, caption: '$barcode / $_productName'));
+      final caption = '$barcode / $_productName';
+      // One QR code covers the whole batch, so print it once per remaining
+      // unit: quantity / unit weight.
+      final unitWeight = container['unit_weight_kg'] as num?;
+      final quantity = container['quantity'] as num? ?? 0;
+      final copies = unitWeight != null && unitWeight > 0
+          ? (quantity / unitWeight).round().clamp(1, 1000)
+          : 1;
+      for (var i = 0; i < copies; i++) {
+        items.add(LabelItem(code: barcode, caption: caption));
+      }
     }
     if (items.isEmpty) {
       _showMessage('Shtrix kodlari bo\'sh konteynerlar topilmadi',

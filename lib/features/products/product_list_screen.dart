@@ -7,6 +7,7 @@ import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/import/bulk_import_screen.dart';
 import 'package:wms_app/features/products/product_detail_screen.dart';
 import 'package:wms_app/features/products/product_form_screen.dart';
+import 'package:wms_app/features/scanner/scan_screen.dart';
 
 final productCategoryFilterProvider = StateProvider<int?>((ref) => null);
 final productSearchProvider = StateProvider<String>((ref) => '');
@@ -87,6 +88,19 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             icon: const Icon(Icons.add),
             tooltip: "Qoshish",
             onPressed: _openForm,
+          ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Skaner',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ScanScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Chiqish',
+            onPressed: () => ref.read(authProvider.notifier).logout(),
           ),
         ],
       ),

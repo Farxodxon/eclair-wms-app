@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/labels/label_pdf_builder.dart';
 import 'package:wms_app/features/products/transaction_history_screen.dart';
 
 final batchContainersProvider =
@@ -50,6 +52,72 @@ class BatchContainersScreen extends ConsumerWidget {
 
   int get batchId => batch['id'] as int;
 
+  Future<void> _showPrintDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> created,
+  ) async {
+    final barcode = (created['container_barcode'] ?? '').toString();
+    final qty = (created['quantity'] as num?) ?? 0;
+    final unitWeight = created['unit_weight_kg'] as num?;
+    final copies = (unitWeight != null && unitWeight > 0)
+        ? (qty / unitWeight).round().clamp(1, 1000)
+        : 1;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Kirim saqlandi'),
+        content: Text(
+          'QR kod: $barcode\n'
+          '$copies dona x ${unitWeight ?? '-'} kg = $qty kg',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Yopish'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _printLabels(context, ref, barcode, copies);
+            },
+            icon: const Icon(Icons.print),
+            label: Text('Chop etish ($copies ta QR)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printLabels(
+    BuildContext context,
+    WidgetRef ref,
+    String barcode,
+    int copies,
+  ) async {
+    final auth = ref.read(authProvider);
+    if (auth.token == null) return;
+    try {
+      final product = await ApiClient().getProduct(auth.token!, productId);
+      final caption = '$barcode / ${product['name'] ?? ''}';
+      final items = List.generate(
+        copies,
+        (_) => LabelItem(code: barcode, caption: caption),
+      );
+      final bytes = await buildLabelSheet(items);
+      await Printing.layoutPdf(
+        onLayout: (_) async => bytes,
+        name: 'Konteyner yorliqlari',
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chop etishda xatolik: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final containersAsync = ref.watch(batchContainersProvider(batchId));
@@ -61,12 +129,18 @@ class BatchContainersScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          final created = await showDialog<String>(
+          final created = await showDialog<Map<String, dynamic>>(
             context: context,
-            builder: (_) => _ContainerFormDialog(batchId: batchId),
+            builder: (_) => _ContainerFormDialog(
+              batchId: batchId,
+              productId: productId,
+            ),
           );
           if (created != null) {
             ref.invalidate(batchContainersProvider(batchId));
+            if (context.mounted) {
+              await _showPrintDialog(context, ref, created);
+            }
           }
         },
         icon: const Icon(Icons.add),
@@ -130,6 +204,13 @@ class BatchContainersScreen extends ConsumerWidget {
   }
 }
 
+/// Formats [value] without a trailing `.0` so `500` is shown instead of
+/// `500.0`.
+String _formatKg(num value) {
+  if (value == value.roundToDouble()) return value.toInt().toString();
+  return value.toString();
+}
+
 class _ContainerTile extends ConsumerWidget {
   const _ContainerTile({
     required this.container,
@@ -140,6 +221,19 @@ class _ContainerTile extends ConsumerWidget {
   final Map<String, dynamic> container;
   final int batchId;
   final bool canAdjust;
+
+  /// `20 dona x 25 kg = 500 kg` for containers created with a unit weight,
+  /// plain kilograms for legacy containers.
+  String quantityLabel() {
+    final quantity = container['quantity'] as num? ?? 0;
+    final unitWeight = container['unit_weight_kg'] as num?;
+    if (unitWeight != null && unitWeight > 0) {
+      final units = quantity / unitWeight;
+      return 'Miqdor: ${_formatKg(units)} dona x ${_formatKg(unitWeight)} kg '
+          '= ${_formatKg(quantity)} kg';
+    }
+    return 'Miqdor: ${_formatKg(quantity)} kg';
+  }
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -198,7 +292,7 @@ class _ContainerTile extends ConsumerWidget {
       leading: const Icon(Icons.qr_code_2),
       title: Text(container['container_barcode'] ?? ''),
       subtitle: Text(
-        'Miqdor: ${container['quantity'] ?? 0} | '
+        '${quantityLabel()} | '
         'Joy: ${container['location_code'] ?? '-'} | '
         '${container['status'] ?? ''}',
       ),
@@ -280,9 +374,13 @@ class _LocationDropdown extends ConsumerWidget {
 }
 
 class _ContainerFormDialog extends ConsumerStatefulWidget {
-  const _ContainerFormDialog({required this.batchId});
+  const _ContainerFormDialog({
+    required this.batchId,
+    required this.productId,
+  });
 
   final int batchId;
+  final int productId;
 
   @override
   ConsumerState<_ContainerFormDialog> createState() =>
@@ -292,16 +390,65 @@ class _ContainerFormDialog extends ConsumerStatefulWidget {
 class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final _barcodeController = TextEditingController();
-  final _quantityController = TextEditingController();
+  final _unitCountController = TextEditingController();
+  final _unitWeightController = TextEditingController();
   int? _locationId;
   String? _error;
   bool _saving = false;
+  bool _loadingDefaults = true;
+  String _containerType = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _unitCountController.addListener(_refreshTotal);
+    _unitWeightController.addListener(_refreshTotal);
+    _loadDefaults();
+  }
 
   @override
   void dispose() {
+    _unitCountController.removeListener(_refreshTotal);
+    _unitWeightController.removeListener(_refreshTotal);
     _barcodeController.dispose();
-    _quantityController.dispose();
+    _unitCountController.dispose();
+    _unitWeightController.dispose();
     super.dispose();
+  }
+
+  void _refreshTotal() {
+    if (mounted) setState(() {});
+  }
+
+  /// Prefills the container type and single unit weight of the product.
+  Future<void> _loadDefaults() async {
+    final auth = ref.read(authProvider);
+    if (auth.token == null) {
+      if (mounted) setState(() => _loadingDefaults = false);
+      return;
+    }
+    try {
+      final product = await ApiClient().getProduct(
+        auth.token!,
+        widget.productId,
+      );
+      final type = (product['default_container_type'] ?? '').toString();
+      final weight = product['default_unit_weight_kg'] as num?;
+      if (!mounted) return;
+      _unitWeightController.text = weight != null ? _formatKg(weight) : '';
+      setState(() {
+        _containerType = type;
+        _loadingDefaults = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingDefaults = false);
+    }
+  }
+
+  double get _totalKg {
+    final count = num.tryParse(_unitCountController.text.trim()) ?? 0;
+    final weight = num.tryParse(_unitWeightController.text.trim()) ?? 0;
+    return (count * weight).toDouble();
   }
 
   Future<void> _save() async {
@@ -315,19 +462,28 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
     });
 
     try {
-      final quantity = num.parse(_quantityController.text.trim());
       final body = <String, dynamic>{
-        'container_barcode': _barcodeController.text.trim(),
-        'quantity': quantity,
+        if (_barcodeController.text.trim().isNotEmpty)
+          'container_barcode': _barcodeController.text.trim(),
+        'unit_count': num.parse(_unitCountController.text.trim()),
+        'unit_weight_kg': num.parse(_unitWeightController.text.trim()),
         if (_locationId != null) 'location_id': _locationId,
       };
-      await ApiClient().createBatchContainer(auth.token!, widget.batchId, body);
-      if (mounted) Navigator.pop(context, 'ok');
+      final created = await ApiClient()
+          .createBatchContainer(auth.token!, widget.batchId, body);
+      if (mounted) Navigator.pop(context, created);
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {
           _saving = false;
           _error = e.message;
+        });
+      }
+    } on FormatException {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Idish soni va og\'irlikni son formatida kiriting';
         });
       }
     }
@@ -338,39 +494,84 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
     return AlertDialog(
       title: const Text("Konteyner qo'shish"),
       content: SizedBox(
-        width: 400,
+        width: 420,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_loadingDefaults)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: LinearProgressIndicator(),
+                  ),
+                if (_containerType.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Idish turi: $_containerType',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
+                  ),
                 TextFormField(
                   controller: _barcodeController,
                   decoration: const InputDecoration(
-                    labelText: 'Shtrix kod',
+                    labelText: "QR kod (bo'sh qoldirilsa avtomatik yaratiladi)",
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Shtrix kod majburiy'
-                      : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _quantityController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Miqdor',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    final parsed = num.tryParse(v?.trim() ?? '');
-                    if (parsed == null || parsed <= 0) {
-                      return "Miqdor 0 dan katta bo'lishi kerak";
-                    }
-                    return null;
-                  },
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _unitCountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Idish soni',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) {
+                          final parsed = int.tryParse(v?.trim() ?? '');
+                          if (parsed == null || parsed <= 0) {
+                            return "Idish soni 0 dan katta bo'lishi kerak";
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _unitWeightController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: '1 idish og\'irligi (kg)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) {
+                          final parsed =
+                              num.tryParse(v?.trim() ?? '');
+                          if (parsed == null || parsed <= 0) {
+                            return "Og'irlik 0 dan katta bo'lishi kerak";
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Jami: ${_formatKg(_totalKg)} kg',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 _LocationDropdown(
@@ -398,7 +599,7 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
           child: const Text('Bekor qilish'),
         ),
         ElevatedButton(
-          onPressed: _saving ? null : _save,
+          onPressed: _saving || _loadingDefaults ? null : _save,
           child: _saving
               ? const SizedBox(
                   width: 20,
@@ -423,16 +624,51 @@ class _OutDialog extends ConsumerStatefulWidget {
 
 class _OutDialogState extends ConsumerState<_OutDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _quantityController = TextEditingController();
+  final _amountController = TextEditingController();
   final _noteController = TextEditingController();
   String? _error;
   bool _saving = false;
 
+  /// Single unit weight in kg, or null for legacy containers that are
+  /// tracked in kilograms only.
+  double? get _unitWeight {
+    final raw = widget.container['unit_weight_kg'];
+    if (raw is num && raw > 0) return raw.toDouble();
+    return null;
+  }
+
+  double get _availableKg =>
+      (widget.container['quantity'] as num?)?.toDouble() ?? 0;
+
+  int get _availableUnits {
+    final weight = _unitWeight;
+    if (weight == null) return 0;
+    return (_availableKg / weight).round();
+  }
+
+  /// The backend always works in kilograms, so unit input is converted here.
+  double get _outKg {
+    final entered = num.tryParse(_amountController.text.trim()) ?? 0;
+    final weight = _unitWeight;
+    return (weight == null ? entered : entered * weight).toDouble();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(_refreshTotal);
+  }
+
   @override
   void dispose() {
-    _quantityController.dispose();
+    _amountController.removeListener(_refreshTotal);
+    _amountController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  void _refreshTotal() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _save() async {
@@ -446,16 +682,21 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
     });
 
     try {
-      final quantity = num.parse(_quantityController.text.trim());
       final result = await ApiClient().inventoryOut(auth.token!, {
         'batch_container_id': widget.container['id'],
-        'quantity': quantity,
+        'quantity': _outKg,
         if (_noteController.text.trim().isNotEmpty)
           'note': _noteController.text.trim(),
       });
       final remaining = result['remaining_quantity'] ?? result['quantity'];
+      final remainingKg = remaining is num ? remaining.toDouble() : 0.0;
+      final weight = _unitWeight;
       if (mounted) {
-        Navigator.pop(context, 'Chiqarish bajarildi, qoldi: $remaining');
+        final suffix = weight == null
+            ? '${_formatKg(remainingKg)} kg'
+            : '${_formatKg(remainingKg)} kg '
+                  '(${(remainingKg / weight).round()} dona)';
+        Navigator.pop(context, 'Chiqarish bajarildi, qoldi: $suffix');
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -469,6 +710,7 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final weight = _unitWeight;
     return AlertDialog(
       title: const Text('Chiqarish (OUT)'),
       content: Form(
@@ -476,28 +718,52 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '${widget.container['container_barcode']} | '
-                'mavjud: ${widget.container['quantity']}',
+                'mavjud: ${weight == null ? '${_formatKg(_availableKg)} kg' : '$_availableUnits dona (${_formatKg(_availableKg)} kg)'}',
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _quantityController,
+                controller: _amountController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Miqdor',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: weight == null ? 'Miqdor (kg)' : 'Idish soni',
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (v) {
                   final parsed = num.tryParse(v?.trim() ?? '');
                   if (parsed == null || parsed <= 0) {
-                    return "Miqdor 0 dan katta bo'lishi kerak";
+                    return "0 dan katta bo'lishi kerak";
+                  }
+                  if (weight == null) {
+                    if (parsed > _availableKg) {
+                      return 'Mavjud: ${_formatKg(_availableKg)} kg';
+                    }
+                    return null;
+                  }
+                  if (parsed > _availableUnits) {
+                    return 'Mavjud: $_availableUnits dona';
                   }
                   return null;
                 },
               ),
+              const SizedBox(height: 12),
+              Text(
+                'Jami chiqariladi: ${_formatKg(_outKg)} kg',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (weight != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '1 idish = ${_formatKg(weight)} kg. Chiqarish kg '
+                    'boshqariladi, idish soni orqali kiritiladi.',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _noteController,

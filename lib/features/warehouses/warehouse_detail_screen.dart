@@ -3,6 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 
+final warehouseUsersProvider =
+    FutureProvider.autoDispose.family<List<dynamic>, int>((ref, warehouseId) {
+  final auth = ref.watch(authProvider);
+  return auth.token != null
+      ? ApiClient().getWarehouseUsers(auth.token!, warehouseId)
+      : Future.value([]);
+});
+
 final zonesProvider =
     FutureProvider.autoDispose.family<List<dynamic>, int>((ref, warehouseId) {
   final auth = ref.watch(authProvider);
@@ -35,8 +43,10 @@ class WarehouseDetailScreen extends ConsumerWidget {
     final zonesAsync = ref.watch(zonesProvider(warehouseId));
     final locationsAsync = ref.watch(storageLocationsProvider(warehouseId));
 
+    final usersAsync = ref.watch(warehouseUsersProvider(warehouseId));
+
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text('$name',
@@ -45,6 +55,7 @@ class WarehouseDetailScreen extends ConsumerWidget {
             tabs: [
               Tab(text: 'Zonalar'),
               Tab(text: 'Joylashuvlar'),
+              Tab(text: 'Xodimlar'),
             ],
           ),
         ),
@@ -75,6 +86,11 @@ class WarehouseDetailScreen extends ConsumerWidget {
                   _LocationsTab(
                     warehouseId: warehouseId,
                     locationsAsync: locationsAsync,
+                  ),
+                  _OperatorsTab(
+                    warehouseId: warehouseId,
+                    usersAsync: usersAsync,
+                    canManage: role == 'super_admin' || role == 'warehouse_manager',
                   ),
                 ],
               ),
@@ -515,6 +531,262 @@ class _LocationFormDialogState extends ConsumerState<_LocationFormDialog> {
       ),
       validator: (v) =>
           (v == null || v.trim().isEmpty) ? 'Majburiy maydon' : null,
+    );
+  }
+}
+
+class _OperatorsTab extends ConsumerWidget {
+  const _OperatorsTab({
+    required this.warehouseId,
+    required this.usersAsync,
+    required this.canManage,
+  });
+
+  final int warehouseId;
+  final AsyncValue<List<dynamic>> usersAsync;
+  final bool canManage;
+
+  Future<void> _addOperator(BuildContext context, WidgetRef ref) async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (_) => _OperatorFormDialog(warehouseId: warehouseId),
+    );
+    if (created == true) {
+      ref.invalidate(warehouseUsersProvider(warehouseId));
+    }
+  }
+
+  Future<void> _editOperator(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> user,
+  ) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          _OperatorFormDialog(warehouseId: warehouseId, user: user),
+    );
+    if (updated == true) {
+      ref.invalidate(warehouseUsersProvider(warehouseId));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        if (canManage)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _addOperator(context, ref),
+                icon: const Icon(Icons.person_add_alt),
+                label: const Text('Operator qo\'shish'),
+              ),
+            ),
+          ),
+        Expanded(
+          child: usersAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, _) => Center(child: Text('Xatolik: $err')),
+            data: (users) {
+              if (users.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'Xodimlar topilmadi',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                );
+              }
+              return ListView.separated(
+                itemCount: users.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final user = users[index] as Map<String, dynamic>;
+                  final isEditableOperator =
+                      canManage && user['role'] == 'operator';
+                  return ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(user['full_name'] ?? ''),
+                    subtitle: Text(user['email'] ?? ''),
+                    trailing: Text(user['role'] ?? ''),
+                    onTap: isEditableOperator
+                        ? () => _editOperator(context, ref, user)
+                        : null,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OperatorFormDialog extends ConsumerStatefulWidget {
+  const _OperatorFormDialog({required this.warehouseId, this.user});
+
+  final int warehouseId;
+  final Map<String, dynamic>? user;
+
+  @override
+  ConsumerState<_OperatorFormDialog> createState() =>
+      _OperatorFormDialogState();
+}
+
+class _OperatorFormDialogState extends ConsumerState<_OperatorFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscure = true;
+  String? _error;
+  bool _saving = false;
+
+  bool get _isEditMode => widget.user != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.user != null) {
+      _fullNameController.text = widget.user!['full_name'] as String? ?? '';
+      _emailController.text = widget.user!['email'] as String? ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final auth = ref.read(authProvider);
+    if (auth.token == null) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      final body = <String, dynamic>{
+        'full_name': _fullNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        if (_passwordController.text.isNotEmpty)
+          'password': _passwordController.text,
+      };
+      if (_isEditMode) {
+        await ApiClient().updateOperator(
+          auth.token!,
+          widget.warehouseId,
+          widget.user!['id'] as int,
+          body,
+        );
+      } else {
+        await ApiClient().createOperator(auth.token!, widget.warehouseId, body);
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.message;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_isEditMode ? 'Operatorni tahrirlash' : 'Operator qo\'shish'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _fullNameController,
+              decoration: const InputDecoration(
+                labelText: 'To\'liq ism',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Ism majburiy' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Email majburiy' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: _isEditMode
+                    ? 'Yangi parol (ixtiyoriy, bo\'sh qoldirsa o\'zgarmaydi)'
+                    : 'Parol',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+              ),
+              obscureText: _obscure,
+              validator: (v) {
+                if (_isEditMode) {
+                  if (v != null && v.isNotEmpty && v.length < 6) {
+                    return 'Parol kamida 6 belgi bo\'lsin';
+                  }
+                  return null;
+                }
+                return (v == null || v.length < 6)
+                    ? 'Parol kamida 6 belgi bo\'lsin'
+                    : null;
+              },
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _error!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Bekor qilish'),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Saqlash'),
+        ),
+      ],
     );
   }
 }

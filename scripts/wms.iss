@@ -1,13 +1,13 @@
 ; Eclair WMS - Windows Setup (Inno Setup 6)
 [Setup]
 AppName=Eclair WMS
-AppVersion=1.0.2
+AppVersion=1.0.3
 AppPublisher=Eclair
 DefaultDirName={autopf}\Eclair WMS
 DefaultGroupName=Eclair WMS
 DisableProgramGroupPage=yes
 OutputDir=C:\Users\Farxod3376\Documents\Default Project\eclair-wms-app\dist
-OutputBaseFilename=WMS_Setup_1.0.2
+OutputBaseFilename=WMS_Setup_1.0.3
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

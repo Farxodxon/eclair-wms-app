@@ -85,6 +85,13 @@ class ScanResultScreen extends ConsumerWidget {
   }
 }
 
+String _amountText(Map<String, dynamic> container) {
+  final qty = (container['quantity'] as num?) ?? 0;
+  final w = container['unit_weight_kg'] as num?;
+  if (w == null || w <= 0) return '$qty kg';
+  return '${(qty / w).round()} dona x $w kg = $qty kg';
+}
+
 class _InfoTile extends StatelessWidget {
   const _InfoTile({required this.label, required this.value});
 
@@ -162,8 +169,13 @@ class _ContainerCard extends StatelessWidget {
               ),
               _InfoTile(
                 label: 'Joriy miqdor',
-                value: '${container['quantity'] ?? 0}',
+                value: _amountText(container),
               ),
+              if ((container['unit_weight_kg'] as num?) != null)
+                _InfoTile(
+                  label: '1 idish',
+                  value: '${container['unit_weight_kg']} kg',
+                ),
             ],
           ),
         ),
@@ -243,8 +255,29 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
   String? _error;
   bool _saving = false;
 
+  num? get _unitWeight => widget.container['unit_weight_kg'] as num?;
+
+  bool get _isUnitMode {
+    final w = _unitWeight;
+    return w != null && w > 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _quantityController.addListener(_onQtyChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onQtyChanged());
+  }
+
+  void _onQtyChanged() {
+    if (!mounted || !_isUnitMode) return;
+    final v = num.tryParse(_quantityController.text.trim()) ?? 0;
+    if (v > 0) setState(() {});
+  }
+
   @override
   void dispose() {
+    _quantityController.removeListener(_onQtyChanged);
     _quantityController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -261,7 +294,10 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
     });
 
     try {
-      final quantity = num.parse(_quantityController.text.trim());
+      final entered = num.parse(_quantityController.text.trim());
+      final available = (widget.container['quantity'] as num?) ?? 0;
+      final computed = _isUnitMode ? entered * _unitWeight! : entered;
+      final quantity = computed > available ? available : computed;
       final result = await ApiClient().inventoryOut(auth.token!, {
         'batch_container_id': widget.container['id'],
         'quantity': quantity,
@@ -284,6 +320,8 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final qty = (widget.container['quantity'] as num?) ?? 0;
+    final enteredNow = num.tryParse(_quantityController.text.trim()) ?? 0;
     return AlertDialog(
       title: const Text('Chiqarish (OUT)'),
       content: Form(
@@ -291,28 +329,53 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${widget.container['container_barcode']} | '
-                'mavjud: ${widget.container['quantity']}',
+                '${widget.container['product_sku'] ?? ''} | '
+                '${widget.container['product_name'] ?? ''}',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 4),
+              Text(
+                '${widget.container['container_barcode']} | '
+                'mavjud: ${_amountText(widget.container)}',
+              ),
+              if (_isUnitMode) ...[
+                const SizedBox(height: 4),
+                Text('1 idishda: $_unitWeight kg'),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: _quantityController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Miqdor',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: _isUnitMode ? 'Idish soni' : 'Miqdor (kg)',
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (v) {
                   final parsed = num.tryParse(v?.trim() ?? '');
                   if (parsed == null || parsed <= 0) {
                     return "Miqdor 0 dan katta bo'lishi kerak";
                   }
+                  final maxAllowed = _isUnitMode ? (qty / _unitWeight!) : qty;
+                  if (parsed > maxAllowed + 0.0001) {
+                    return "Mavjuddan ko'p bo'lishi mumkin emas";
+                  }
                   return null;
                 },
               ),
+              if (_isUnitMode)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Jami: ${enteredNow * _unitWeight!} kg',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _noteController,

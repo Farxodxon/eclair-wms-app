@@ -24,6 +24,8 @@ class AuthState {
   }
 
   bool get canManageQuality => canAdjust;
+
+  bool get isOperator => role == 'operator';
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {

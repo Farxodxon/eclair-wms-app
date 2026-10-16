@@ -47,6 +47,9 @@ endfunction()
 
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
+# WebView2-based plugins (webview_all) still use <experimental/coroutine>,
+# which MSVC 2026 builds reject unless this symbol is defined.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Application build; see runner/CMakeLists.txt.

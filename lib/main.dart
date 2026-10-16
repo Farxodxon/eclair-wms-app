@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wms_app/core/config.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/auth/login_screen.dart';
+import 'package:wms_app/features/products/product_list_screen.dart';
 import 'package:wms_app/features/warehouses/warehouse_list_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await loadServerConfig();
+  unawaited(discoverServer());
   runApp(const ProviderScope(child: WmsApp()));
 }
 
@@ -22,7 +29,9 @@ class WmsApp extends ConsumerWidget {
         useMaterial3: true,
       ),
       home: auth.status == AuthStatus.loggedIn
-          ? const WarehouseListScreen()
+          ? (auth.isOperator
+              ? const ProductListScreen()
+              : const WarehouseListScreen())
           : const LoginScreen(),
     );
   }

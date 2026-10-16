@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wms_app/core/server_settings_dialog.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/stock_lookup/stock_lookup_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -34,7 +36,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isLoading = auth.status == AuthStatus.loading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tizimga kirish')),
+      appBar: AppBar(
+        title: const Text('Tizimga kirish'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Server manzili',
+            onPressed: () => showServerSettingsDialog(context),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -101,6 +112,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       )
                     : const Text('Kirish'),
               ),
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const StockLookupScreen()),
+                );
+              },
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text("Qoldiqlarni ko'rish (kirish shart emas)"),
             ),
           ],
         ),
