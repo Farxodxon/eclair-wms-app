@@ -1,13 +1,13 @@
 ; Eclair WMS - Windows Setup (Inno Setup 6)
 [Setup]
 AppName=Eclair WMS
-AppVersion=1.0.3
+AppVersion=1.0.4
 AppPublisher=Eclair
 DefaultDirName={autopf}\Eclair WMS
 DefaultGroupName=Eclair WMS
 DisableProgramGroupPage=yes
 OutputDir=C:\Users\Farxod3376\Documents\Default Project\eclair-wms-app\dist
-OutputBaseFilename=WMS_Setup_1.0.3
+OutputBaseFilename=WMS_Setup_1.0.4
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -61,7 +61,7 @@ begin
     'Ilova qaysi serverga ulanadi?',
     'Server kompyuterining IP manzili va portini kiriting (masalan: 192.168.1.50:8080)');
   ServerPage.Add('Server manzili:', False);
-  ServerPage.Values[0] := 'https://eclair-wms-backend.onrender.com';
+  ServerPage.Values[0] := 'https://eclair-wms-app.onrender.com';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
