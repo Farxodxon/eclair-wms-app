@@ -17,7 +17,7 @@ const String _internetServerUrl = String.fromEnvironment(
 /// 3) --dart-define=API_BASE_URL, bo'lmasa http://localhost:8080
 String apiBaseUrl = const String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:8080',
+  defaultValue: 'https://eclair-wms-backend.onrender.com',
 );
 
 List<String> _candidates = [];
@@ -73,7 +73,7 @@ List<String> _parseCandidates(String? raw) {
   }
   final defaultUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://eclair-wms-backend.onrender.com',
   );
   addIf(defaultUrl);
   if (_internetServerUrl.isNotEmpty) addIf(_internetServerUrl);
