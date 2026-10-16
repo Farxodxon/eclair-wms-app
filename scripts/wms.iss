@@ -1,13 +1,13 @@
 ; Eclair WMS - Windows Setup (Inno Setup 6)
 [Setup]
 AppName=Eclair WMS
-AppVersion=1.0.4
+AppVersion=1.0.5
 AppPublisher=Eclair
 DefaultDirName={autopf}\Eclair WMS
 DefaultGroupName=Eclair WMS
 DisableProgramGroupPage=yes
 OutputDir=C:\Users\Farxod3376\Documents\Default Project\eclair-wms-app\dist
-OutputBaseFilename=WMS_Setup_1.0.4
+OutputBaseFilename=WMS_Setup_1.0.5
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -34,12 +34,8 @@ Filename: "{app}\wms_app.exe"; Description: "Eclair WMS ni hozir ishga tushirish
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
-Type: files; Name: "{app}\server.txt"
 
 [Code]
-var
-  ServerPage: TInputQueryWizardPage;
-
 const
   WebView2Guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
 
@@ -54,28 +50,12 @@ begin
     Result := True;
 end;
 
-procedure InitializeWizard;
-begin
-  ServerPage := CreateInputQueryPage(wpSelectDir,
-    'Server manzili',
-    'Ilova qaysi serverga ulanadi?',
-    'Server kompyuterining IP manzili va portini kiriting (masalan: 192.168.1.50:8080)');
-  ServerPage.Add('Server manzili:', False);
-  ServerPage.Values[0] := 'https://eclair-wms-app.onrender.com';
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  Url: String;
   ResultCode: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
-    Url := Trim(ServerPage.Values[0]);
-    if (Pos('http://', Url) <> 1) and (Pos('https://', Url) <> 1) then
-      Url := 'http://' + Url;
-    SaveStringToFile(ExpandConstant('{app}\server.txt'), Url, False);
-
     if not IsWebView2Installed() then
     begin
       if Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:wms_app/core/server_settings_dialog.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/stock_lookup/stock_lookup_screen.dart';
 
@@ -38,13 +37,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tizimga kirish'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Server manzili',
-            onPressed: () => showServerSettingsDialog(context),
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
