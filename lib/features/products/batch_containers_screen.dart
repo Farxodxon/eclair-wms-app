@@ -5,6 +5,7 @@ import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/labels/label_pdf_builder.dart';
 import 'package:wms_app/features/products/transaction_history_screen.dart';
+import 'package:wms_app/core/container_types.dart';
 
 final batchContainersProvider =
     FutureProvider.autoDispose.family<List<dynamic>, int>((ref, batchId) {
@@ -397,6 +398,7 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
   bool _saving = false;
   bool _loadingDefaults = true;
   String _containerType = '';
+  final _containerTypeController = TextEditingController();
 
   @override
   void initState() {
@@ -413,6 +415,7 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
     _barcodeController.dispose();
     _unitCountController.dispose();
     _unitWeightController.dispose();
+    _containerTypeController.dispose();
     super.dispose();
   }
 
@@ -436,6 +439,7 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
       final weight = product['default_unit_weight_kg'] as num?;
       if (!mounted) return;
       _unitWeightController.text = weight != null ? _formatKg(weight) : '';
+      _containerTypeController.text = type;
       setState(() {
         _containerType = type;
         _loadingDefaults = false;
@@ -469,8 +473,42 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
         'unit_weight_kg': num.parse(_unitWeightController.text.trim()),
         if (_locationId != null) 'location_id': _locationId,
       };
+      if (_containerTypeController.text.trim().isNotEmpty) {
+        body['container_type'] = _containerTypeController.text.trim();
+      }
       final created = await ApiClient()
           .createBatchContainer(auth.token!, widget.batchId, body);
+      try {
+        final product = await ApiClient().getProduct(auth.token!, widget.productId);
+        final needsUpdate = (product['default_container_type'] == null ||
+                (product['default_container_type'] as String).isEmpty ||
+                product['default_unit_weight_kg'] == null) &&
+            (_containerTypeController.text.trim().isNotEmpty ||
+                _unitWeightController.text.trim().isNotEmpty);
+        if (needsUpdate) {
+          final updateBody = <String, dynamic>{};
+          if (product['default_container_type'] == null ||
+              (product['default_container_type'] as String).isEmpty) {
+            if (_containerTypeController.text.trim().isNotEmpty) {
+              updateBody['default_container_type'] =
+                  _containerTypeController.text.trim();
+            }
+          }
+          if (product['default_unit_weight_kg'] == null) {
+            final w = num.tryParse(_unitWeightController.text.trim());
+            if (w != null) updateBody['default_unit_weight_kg'] = w;
+          }
+          if (updateBody.isNotEmpty) {
+            await ApiClient().updateProduct(
+              auth.token!,
+              widget.productId,
+              updateBody,
+            );
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
       if (mounted) Navigator.pop(context, created);
     } on ApiException catch (e) {
       if (mounted) {
@@ -507,17 +545,35 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
                     padding: EdgeInsets.only(bottom: 12),
                     child: LinearProgressIndicator(),
                   ),
-                if (_containerType.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Idish turi: $_containerType',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
-                      ),
-                    ),
+                DropdownButtonFormField<String>(
+                  value: _containerTypeController.text.isEmpty
+                      ? null
+                      : _containerTypeController.text,
+                  decoration: const InputDecoration(
+                    labelText: 'Idish turi (ixtiyoriy)',
+                    border: OutlineInputBorder(),
                   ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Tanlanmagan'),
+                    ),
+                    for (final t in containerTypeOptions(
+                      _containerTypeController.text,
+                    ))
+                      DropdownMenuItem<String>(
+                        value: t,
+                        child: Text(t),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _containerTypeController.text = value ?? '';
+                      _containerType = _containerTypeController.text;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _barcodeController,
                   decoration: const InputDecoration(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/core/container_types.dart';
 
 final categoriesProvider = FutureProvider.autoDispose<List<dynamic>>((ref) {
   final auth = ref.watch(authProvider);
@@ -339,13 +340,32 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _containerTypeController,
+            DropdownButtonFormField<String>(
+              value: _containerTypeController.text.isEmpty
+                  ? null
+                  : _containerTypeController.text,
               decoration: const InputDecoration(
                 labelText: 'Idish turi (ixtiyoriy)',
-                hintText: 'Qop, quti, palet...',
                 border: OutlineInputBorder(),
               ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text('Tanlanmagan'),
+                ),
+                for (final t in containerTypeOptions(
+                  _containerTypeController.text,
+                ))
+                  DropdownMenuItem<String>(
+                    value: t,
+                    child: Text(t),
+                  ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _containerTypeController.text = value ?? '';
+                });
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(

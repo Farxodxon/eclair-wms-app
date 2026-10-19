@@ -558,12 +558,29 @@ class ApiClient {
   Future<List<dynamic>> getQualityHistory(String token, int batchId) async {
     try {
       final response = await _dio.get(
-        '/batches/$batchId/quality-history',
+        '/batches//quality-history',
         options: _authOptions(token),
       );
       return response.data as List<dynamic>;
     } on DioException catch (e) {
       throw _handleError(e, fallback: 'Tarixni yuklashda xatolik');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProduct(
+    String token,
+    int id,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/products/$id',
+        data: body,
+        options: _authOptions(token),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e, fallback: 'Mahsulotni yangilashda xatolik');
     }
   }
 }
