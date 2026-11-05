@@ -397,7 +397,6 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
   String? _error;
   bool _saving = false;
   bool _loadingDefaults = true;
-  String _containerType = '';
   final _containerTypeController = TextEditingController();
 
   @override
@@ -441,7 +440,6 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
       _unitWeightController.text = weight != null ? _formatKg(weight) : '';
       _containerTypeController.text = type;
       setState(() {
-        _containerType = type;
         _loadingDefaults = false;
       });
     } catch (_) {
@@ -569,7 +567,6 @@ class _ContainerFormDialogState extends ConsumerState<_ContainerFormDialog> {
                   onChanged: (value) {
                     setState(() {
                       _containerTypeController.text = value ?? '';
-                      _containerType = _containerTypeController.text;
                     });
                   },
                 ),

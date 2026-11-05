@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/alerts/expiring_batches_screen.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
+import 'package:wms_app/features/inventory_import/opening_stock_import_screen.dart';
 import 'package:wms_app/features/labels/labels_home_screen.dart';
 import 'package:wms_app/features/products/product_list_screen.dart';
 import 'package:wms_app/features/quality/quality_pending_screen.dart';
@@ -100,6 +101,17 @@ class WarehouseListScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const ReportsScreen()),
               ),
               icon: const Icon(Icons.assessment, color: Colors.white),
+            ),
+          if (canManageReports)
+            IconButton(
+              tooltip: "Boshlang'ich qoldiq importi",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const OpeningStockImportScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.upload_file, color: Colors.white),
             ),
           IconButton(
             tooltip: 'Skaner',

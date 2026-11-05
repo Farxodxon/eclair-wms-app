@@ -164,6 +164,28 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> importOpeningStock(
+    String token,
+    Map<String, dynamic> body, {
+    bool dryRun = false,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/inventory/opening-stock',
+        data: body,
+        queryParameters: dryRun ? {'dry_run': 'true'} : null,
+        options: _authOptions(token),
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (e.response?.statusCode == 422 && data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+      throw _handleError(e, fallback: 'Import qilishda xatolik');
+    }
+  }
+
   Future<List<dynamic>> getProducts(
     String token, {
     int? categoryId,
