@@ -1,6 +1,6 @@
 # WMS App (Flutter)
 
-Eclair zavodi WMS uchun Flutter frontend. Backend bilan HTTP orqali ishlaydi,
+Eclair zavodi WMS uchun Flutter frontend. Backend bilan HTTPS orqali ishlaydi,
 JWT token asosida autentifikatsiya qilinadi.
 
 ## Ishga tushirish
@@ -11,15 +11,42 @@ JWT token asosida autentifikatsiya qilinadi.
 flutter pub get
 ```
 
-2. Backend ishlab turganini tekshiring (`cd ../wms_backend && dart run bin/server.dart`).
-
-3. Ilovani ishga tushiring (API manzili `--dart-define` orqali uzatiladi):
+2. Ilovani ishga tushiring:
 
 ```
-flutter run -d macos --dart-define=API_BASE_URL=http://localhost:8080
+flutter run -d macos
 ```
 
-Agar backend boshqa manzilda bo'lsa, `API_BASE_URL`ni o'zgartiring.
+Ilova default holatda bulut backend'ga ulanadi:
+`https://eclair-wms-app.onrender.com`. Render bepul tarifda uxlab qolsa,
+birinchi so'rov 30-60 soniya kutishi mumkin.
+
+Boshqa bulut muhiti kerak bo'lsa:
+
+```
+flutter run -d macos --dart-define=API_BASE_URL=https://<bulut-backend>
+```
+
+## Testlar
+
+Birlik va widget testlari tarmoqsiz ishlaydi:
+
+```
+flutter test
+```
+
+Live skaner testi alohida test backend'da konteyner yaratadi va OUT qiladi.
+Muhit o'zgaruvchilari berilmasa o'tkazib yuboriladi:
+
+```
+WMS_LIVE_TEST=1 \
+WMS_TEST_BASE_URL=https://<test-backend> \
+WMS_TEST_EMAIL=<test-email> \
+WMS_TEST_PASSWORD=<test-password> \
+flutter test test/features/scanner/scan_result_test.dart
+```
+
+Production backend bloklangan. Real parollarni repo'ga yozmang.
 
 ## Ekranlar
 
@@ -28,6 +55,6 @@ Agar backend boshqa manzilda bo'lsa, `API_BASE_URL`ni o'zgartiring.
 
 ## Manzillar
 
-- `lib/core/config.dart` - API bazaviy manzil
+- `lib/core/config.dart` - API bazaviy manzil (default Render)
 - `lib/core/api_client.dart` - HTTP klient (Dio)
 - `lib/features/auth/auth_provider.dart` - auth holati (Riverpod)

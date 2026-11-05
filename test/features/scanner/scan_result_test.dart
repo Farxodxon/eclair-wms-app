@@ -8,12 +8,40 @@ import 'package:wms_app/core/api_client.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/scanner/scan_result_screen.dart';
 
-/// Real server (http://localhost:8080) ustida skaner OUT oqimini tekshiradi.
-/// setUpAll konteyner yaratadi (batch 3 — approved, 20 dona x 25 kg = 500 kg).
-/// Eslatma: batch 18/19 quality_status=pending_inspection -> OUT 400
-/// batch_not_approved beradi, shuning uchun approved batch 3 ishlatiladi.
+/// Live skaner testi alohida test backend'da konteyner yaratadi va OUT qiladi.
+/// Production'ga tasodifan urilmasligi uchun muhit o'zgaruvchilari majburiy:
+///
+///   WMS_LIVE_TEST=1 \
+///   WMS_TEST_BASE_URL=https://test-backend.example \
+///   WMS_TEST_EMAIL=test@example.com \
+///   WMS_TEST_PASSWORD=test-password \
+///   flutter test test/features/scanner/scan_result_test.dart
+///
+/// Ixtiyoriy: WMS_TEST_BATCH_ID (default 3). Batch approved va yetarli
+/// qoldiqqa ega bo'lishi kerak. Production backend bloklangan; faqat
+/// WMS_ALLOW_PROD_TESTS=1 bilan ochiladi.
 
-const _batchId = 3;
+final _baseUrl = (Platform.environment['WMS_TEST_BASE_URL'] ?? '').trim();
+final _email = (Platform.environment['WMS_TEST_EMAIL'] ?? '').trim();
+final _password = Platform.environment['WMS_TEST_PASSWORD'] ?? '';
+final _liveRequested = Platform.environment['WMS_LIVE_TEST'] == '1';
+final _allowProd = Platform.environment['WMS_ALLOW_PROD_TESTS'] == '1';
+final _batchId =
+    int.tryParse(Platform.environment['WMS_TEST_BATCH_ID'] ?? '') ?? 3;
+
+final _isProduction =
+    Uri.tryParse(_baseUrl)?.host == 'eclair-wms-app.onrender.com';
+
+final String? _liveSkipReason = !_liveRequested
+    ? 'WMS_LIVE_TEST=1 berilmagan; live skaner testi o\'tkazib yuborildi.'
+    : _baseUrl.isEmpty || _email.isEmpty || _password.isEmpty
+    ? 'WMS_TEST_BASE_URL, WMS_TEST_EMAIL va WMS_TEST_PASSWORD '
+          'berilmagan; live skaner testi o\'tkazib yuborildi.'
+    : _isProduction && !_allowProd
+    ? 'Production backend bloklangan. Test backend bering yoki '
+          'WMS_ALLOW_PROD_TESTS=1 qo\'ying.'
+    : null;
+
 late String _token;
 late Map<String, dynamic> _container;
 
@@ -27,18 +55,12 @@ class _FakeAuth extends AuthNotifier {
   }
 }
 
-Future<void> _pumpResult(
-  WidgetTester tester,
-  Map<String, dynamic> data,
-) async {
+Future<void> _pumpResult(WidgetTester tester, Map<String, dynamic> data) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [authProvider.overrideWith((ref) => _FakeAuth(_token))],
       child: MaterialApp(
-        home: ScanResultScreen(
-          type: ScanResultType.container,
-          data: data,
-        ),
+        home: ScanResultScreen(type: ScanResultType.container, data: data),
       ),
     ),
   );
@@ -50,87 +72,108 @@ void main() {
   // Automated binding FakeAsync da real tarmoq hodisalarini yetkazmaydi.
   LiveTestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() async {
-    HttpOverrides.global = null;
-    final api = ApiClient();
-    final login = await api.login('admin@eclair.uz', 'Test1234!');
-    _token = login['token'] as String;
-    final created = await api.createBatchContainer(_token, _batchId, {
-      'unit_count': 20,
-      'unit_weight_kg': 25,
+  group('live backend', () {
+    setUpAll(() async {
+      HttpOverrides.global = null;
+      ApiClient.setBaseUrl(
+        _baseUrl.endsWith('/')
+            ? _baseUrl.substring(0, _baseUrl.length - 1)
+            : _baseUrl,
+      );
+
+      final api = ApiClient();
+      final login = await api.login(_email, _password);
+      _token = login['token'] as String;
+      final created = await api.createBatchContainer(_token, _batchId, {
+        'unit_count': 20,
+        'unit_weight_kg': 25,
+      });
+      final barcode = created['container_barcode'] as String;
+      final full = await api.getContainerByBarcode(_token, barcode);
+      expect(full, isNotNull, reason: 'konteyner topilmadi: $barcode');
+      _container = full!;
     });
-    final barcode = created['container_barcode'] as String;
-    final full = await api.getContainerByBarcode(_token, barcode);
-    expect(full, isNotNull, reason: 'konteyner topilmadi: $barcode');
-    _container = full!;
-  });
 
-  testWidgets('konteyner kartasi + OUT dialog (idish rejimi) + real saqlash',
-      (tester) async {
-    HttpOverrides.global = null;
-    await _pumpResult(tester, _container);
+    testWidgets('konteyner kartasi + OUT dialog (idish rejimi) + real saqlash', (
+      tester,
+    ) async {
+      HttpOverrides.global = null;
+      await _pumpResult(tester, _container);
 
-    // --- karta ---
-    expect(find.text(_container['container_barcode'] as String), findsOneWidget);
-    expect(find.text('Mahsulot'), findsOneWidget);
-    expect(find.text(_container['product_name'] as String), findsOneWidget);
-    expect(find.text('SKU'), findsOneWidget);
-    expect(find.text(_container['product_sku'] as String), findsOneWidget);
-    expect(find.text('Joriy miqdor'), findsOneWidget);
-    expect(find.text('20 dona x 25 kg = 500 kg'), findsOneWidget);
-    expect(find.text('1 idish'), findsOneWidget);
-    expect(find.text('25 kg'), findsOneWidget);
-    expect(find.text('Chiqarish (OUT)'), findsOneWidget);
-    expect(find.text('Yana skanerlash'), findsOneWidget);
+      // --- karta ---
+      expect(
+        find.text(_container['container_barcode'] as String),
+        findsOneWidget,
+      );
+      expect(find.text('Mahsulot'), findsOneWidget);
+      expect(find.text(_container['product_name'] as String), findsOneWidget);
+      expect(find.text('SKU'), findsOneWidget);
+      expect(find.text(_container['product_sku'] as String), findsOneWidget);
+      expect(find.text('Joriy miqdor'), findsOneWidget);
+      expect(find.text('20 dona x 25 kg = 500 kg'), findsOneWidget);
+      expect(find.text('1 idish'), findsOneWidget);
+      expect(find.text('25 kg'), findsOneWidget);
+      expect(find.text('Chiqarish (OUT)'), findsOneWidget);
+      expect(find.text('Yana skanerlash'), findsOneWidget);
 
-    // --- OUT dialog ---
-    await tester.tap(find.text('Chiqarish (OUT)'));
-    await tester.pumpAndSettle();
+      // --- OUT dialog ---
+      await tester.tap(find.text('Chiqarish (OUT)'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Chiqarish (OUT)'), findsWidgets); // title + appbar button
-    expect(
-      find.text('${_container['product_sku']} | ${_container['product_name']}'),
-      findsOneWidget,
-    );
-    expect(
-      find.text(
-          '${_container['container_barcode']} | mavjud: 20 dona x 25 kg = 500 kg'),
-      findsOneWidget,
-    );
-    expect(find.text('1 idishda: 25 kg'), findsOneWidget);
-    expect(find.text('Idish soni'), findsOneWidget);
-    expect(find.text('Izoh (ixtiyoriy)'), findsOneWidget);
+      expect(
+        find.text('Chiqarish (OUT)'),
+        findsWidgets,
+      ); // title + appbar button
+      expect(
+        find.text(
+          '${_container['product_sku']} | ${_container['product_name']}',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          '${_container['container_barcode']} | mavjud: 20 dona x 25 kg = 500 kg',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('1 idishda: 25 kg'), findsOneWidget);
+      expect(find.text('Idish soni'), findsOneWidget);
+      expect(find.text('Izoh (ixtiyoriy)'), findsOneWidget);
 
-    // --- Jami: 10 dona -> 250 kg ---
-    await tester.enterText(find.byType(TextFormField).first, '10');
-    await tester.pump();
-    expect(find.text('Jami: 250 kg'), findsOneWidget);
+      // --- Jami: 10 dona -> 250 kg ---
+      await tester.enterText(find.byType(TextFormField).first, '10');
+      await tester.pump();
+      expect(find.text('Jami: 250 kg'), findsOneWidget);
 
-    // --- validator: 100 dona (2500 kg) mavjuddan ko'p ---
-    await tester.enterText(find.byType(TextFormField).first, '100');
-    await tester.pump();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Chiqarish'));
-    await tester.pump();
-    expect(find.text("Mavjuddan ko'p bo'lishi mumkin emas"), findsOneWidget);
-    expect(find.text('Chiqarish bajarildi, qoldi: 250'), findsNothing);
+      // --- validator: 100 dona (2500 kg) mavjuddan ko'p ---
+      await tester.enterText(find.byType(TextFormField).first, '100');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Chiqarish'));
+      await tester.pump();
+      expect(find.text("Mavjuddan ko'p bo'lishi mumkin emas"), findsOneWidget);
+      expect(find.text('Chiqarish bajarildi, qoldi: 250'), findsNothing);
 
-    // --- real API orqali saqlash ---
-    await tester.enterText(find.byType(TextFormField).first, '10');
-    await tester.pump();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Chiqarish'));
-    await tester.pumpAndSettle();
+      // --- real API orqali saqlash ---
+      await tester.enterText(find.byType(TextFormField).first, '10');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Chiqarish'));
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('Chiqarish bajarildi'), findsOneWidget);
-    expect(find.textContaining('qoldi: 250'), findsOneWidget);
+      expect(find.textContaining('Chiqarish bajarildi'), findsOneWidget);
+      expect(find.textContaining('qoldi: 250'), findsOneWidget);
 
-    // serverda qoldi 250 kg bo'lishi kerak
-    final after = await ApiClient().getContainerByBarcode(
-        _token, _container['container_barcode'] as String);
-    expect(after!['quantity'], 250);
-  });
+      // serverda qoldi 250 kg bo'lishi kerak
+      final after = await ApiClient().getContainerByBarcode(
+        _token,
+        _container['container_barcode'] as String,
+      );
+      expect(after!['quantity'], 250);
+    });
+  }, skip: _liveSkipReason);
 
-  testWidgets("eski konteyner: unit_weight_kg yo'q -> Miqdor (kg) rejimi",
-      (tester) async {
+  testWidgets("eski konteyner: unit_weight_kg yo'q -> Miqdor (kg) rejimi", (
+    tester,
+  ) async {
     HttpOverrides.global = null;
     final legacy = <String, dynamic>{
       'id': 999001,
