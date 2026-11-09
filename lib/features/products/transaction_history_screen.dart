@@ -90,7 +90,7 @@ class TransactionHistoryScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '${t['quantity'] ?? 0}',
+                      '${t['quantity'] ?? 0} kg',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.blueGrey,

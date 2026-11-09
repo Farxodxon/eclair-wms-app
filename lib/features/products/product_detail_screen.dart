@@ -166,7 +166,7 @@ class ProductDetailScreen extends ConsumerWidget {
                         '${urgent ? '  !!!' : ''}',
                       ),
                       trailing: Text(
-                        '${batch['total_quantity'] ?? 0}',
+                        '${batch['total_quantity'] ?? 0} kg',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: color,
@@ -268,7 +268,7 @@ class _ProductLocationsSheet extends ConsumerWidget {
                           'Muddat: ${loc['expiry_date'] ?? '-'}',
                         ),
                         trailing: Text(
-                          '${loc['quantity'] ?? 0}',
+                          '${loc['quantity'] ?? 0} kg',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       );

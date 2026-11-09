@@ -108,7 +108,7 @@ class _StockLookupScreenState extends State<StockLookupScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           trailing: Text(
-                            '${item['quantity']}',
+                            '${item['quantity']} kg',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         );

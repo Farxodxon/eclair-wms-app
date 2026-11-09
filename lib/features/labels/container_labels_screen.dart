@@ -291,7 +291,7 @@ class _ContainerLabelsScreenState extends ConsumerState<ContainerLabelsScreen> {
               }),
               title: Text('${container['container_barcode'] ?? ''}'),
               subtitle: Text(
-                'Miqdor: ${container['quantity'] ?? 0} | '
+                'Miqdor: ${container['quantity'] ?? 0} kg | '
                 'Joy: ${container['location_code'] ?? '-'}',
               ),
               secondary: const Icon(Icons.qr_code_2),

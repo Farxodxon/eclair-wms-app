@@ -139,7 +139,7 @@ class _ExpiryBatchCard extends StatelessWidget {
 
     final locationsBrief = locations
         .map((l) => '${l['warehouse_name']} / ${l['location_code']}: '
-            '${l['quantity']}')
+            '${l['quantity']} kg')
         .join(', ');
 
     return Card(
@@ -202,7 +202,7 @@ class _ExpiryBatchCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '$totalQuantity',
+              '$totalQuantity kg',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: _urgency == 'expired'

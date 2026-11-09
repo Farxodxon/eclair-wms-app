@@ -1039,7 +1039,7 @@ class _AdjustDialogState extends ConsumerState<_AdjustDialog> {
             children: [
               Text(
                 '${widget.container['container_barcode']} | '
-                'hozirgi miqdor: ${widget.container['quantity']}',
+                'hozirgi miqdor: ${widget.container['quantity']} kg',
               ),
               const SizedBox(height: 12),
               TextFormField(

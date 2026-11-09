@@ -144,7 +144,7 @@ class _PendingBatchCard extends ConsumerWidget {
             Text('Lot: $lotNumber | Qabul: $receivedDate'),
             const SizedBox(height: 4),
             Text(
-              '$totalQuantity jami',
+              '$totalQuantity kg jami',
               style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 10),
