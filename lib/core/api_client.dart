@@ -59,6 +59,18 @@ class ApiClient {
           return ApiException('Bunday SKU allaqachon mavjud');
         case 'invalid_transition':
           return ApiException("Bu partiya bu holatga o'tkazilmaydi");
+        case 'batch_not_approved':
+          return ApiException("Partiya tasdiqlanmagan, chiqim qilib bo'lmaydi");
+        case 'email_already_exists':
+          return ApiException('Bunday email allaqachon mavjud');
+        case 'date_range_required':
+          return ApiException("Sana oralig'ini kiriting");
+        case 'missing_organization':
+          return ApiException('Foydalanuvchi tashkilotga biriktirilmagan');
+        case 'already_assigned':
+          return ApiException('Foydalanuvchi allaqachon biriktirilgan');
+        case 'invalid_quality_status':
+          return ApiException("Sifat holati noto'g'ri");
       }
     }
     return ApiException(fallback);
@@ -580,7 +592,7 @@ class ApiClient {
   Future<List<dynamic>> getQualityHistory(String token, int batchId) async {
     try {
       final response = await _dio.get(
-        '/batches//quality-history',
+        '/batches/$batchId/quality-history',
         options: _authOptions(token),
       );
       return response.data as List<dynamic>;
