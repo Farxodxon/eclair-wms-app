@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import 'package:wms_app/core/api_client.dart';
+import 'package:wms_app/core/offline/offline_controller.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/labels/label_pdf_builder.dart';
 import 'package:wms_app/features/products/transaction_history_screen.dart';
@@ -735,12 +736,25 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
     });
 
     try {
-      final result = await ApiClient().inventoryOut(auth.token!, {
-        'batch_container_id': widget.container['id'],
-        'quantity': _outKg,
-        if (_noteController.text.trim().isNotEmpty)
-          'note': _noteController.text.trim(),
-      });
+      final outcome = await ref
+          .read(offlineControllerProvider.notifier)
+          .submitOut({
+            'batch_container_id': widget.container['id'],
+            'quantity': _outKg,
+            if (_noteController.text.trim().isNotEmpty)
+              'note': _noteController.text.trim(),
+          }, '${widget.container['container_barcode'] ?? ''} | $_outKg kg');
+      if (outcome.queued) {
+        if (mounted) {
+          Navigator.pop(
+            context,
+            "Internet yo'q: amal saqlandi, internet kelganda avtomatik "
+            "yuboriladi",
+          );
+        }
+        return;
+      }
+      final result = outcome.data ?? const <String, dynamic>{};
       final remaining = result['remaining_quantity'] ?? result['quantity'];
       final remainingKg = remaining is num ? remaining.toDouble() : 0.0;
       final weight = _unitWeight;

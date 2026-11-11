@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wms_app/core/api_client.dart';
+import 'package:wms_app/core/offline/offline_controller.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/products/product_detail_screen.dart';
 
@@ -298,12 +299,25 @@ class _OutDialogState extends ConsumerState<_OutDialog> {
       final available = (widget.container['quantity'] as num?) ?? 0;
       final computed = _isUnitMode ? entered * _unitWeight! : entered;
       final quantity = computed > available ? available : computed;
-      final result = await ApiClient().inventoryOut(auth.token!, {
-        'batch_container_id': widget.container['id'],
-        'quantity': quantity,
-        if (_noteController.text.trim().isNotEmpty)
-          'note': _noteController.text.trim(),
-      });
+      final outcome = await ref
+          .read(offlineControllerProvider.notifier)
+          .submitOut({
+            'batch_container_id': widget.container['id'],
+            'quantity': quantity,
+            if (_noteController.text.trim().isNotEmpty)
+              'note': _noteController.text.trim(),
+          }, '${widget.container['container_barcode'] ?? ''} | $quantity kg');
+      if (outcome.queued) {
+        if (mounted) {
+          Navigator.pop(
+            context,
+            "Internet yo'q: amal saqlandi, internet kelganda avtomatik "
+            "yuboriladi",
+          );
+        }
+        return;
+      }
+      final result = outcome.data ?? const <String, dynamic>{};
       final remaining = result['remaining_quantity'] ?? result['quantity'];
       if (mounted) {
         Navigator.pop(context, 'Chiqarish bajarildi, qoldi: $remaining');

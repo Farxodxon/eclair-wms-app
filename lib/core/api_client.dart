@@ -9,8 +9,26 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+class NetworkUnavailable extends ApiException {
+  NetworkUnavailable(super.message);
+}
+
+class RawResponse {
+  RawResponse(this.statusCode, this.data, {this.replay = false});
+  final int statusCode;
+  final dynamic data;
+  final bool replay;
+  bool get ok => statusCode >= 200 && statusCode < 300;
+  String? get errorCode => (data is Map) ? data['error']?.toString() : null;
+}
+
 class ApiClient {
-  static final Dio _sharedDio = Dio(BaseOptions(baseUrl: apiBaseUrl));
+  static final Dio _sharedDio = Dio(BaseOptions(
+    baseUrl: apiBaseUrl,
+    connectTimeout: const Duration(seconds: 20),
+    sendTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 90),
+  ));
   final Dio _dio = _sharedDio;
 
   /// Manzil o'zgarganda barcha ApiClient nusxalari yangisini ishlatadi.
@@ -22,6 +40,14 @@ class ApiClient {
     DioException e, {
     String fallback = 'Serverga ulanib bolmadi',
   }) {
+    if (e.response == null &&
+        (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.unknown)) {
+      return NetworkUnavailable(fallback);
+    }
     if (e.response?.statusCode == 401) {
       return ApiException('Sessiya muddati tugagan, qaytadan kiring');
     }
@@ -74,6 +100,22 @@ class ApiClient {
       }
     }
     return ApiException(fallback);
+  }
+
+  String errorMessageFor(RawResponse r) {
+    final options = RequestOptions(path: '');
+    return _handleError(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: r.statusCode,
+          data: r.data,
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+      fallback: 'Amal bajarilmadi',
+    ).message;
   }
 
   Options _authOptions(String token) {
@@ -615,6 +657,72 @@ class ApiClient {
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleError(e, fallback: 'Mahsulotni yangilashda xatolik');
+    }
+  }
+
+  Future<bool> probeHealth() async {
+    try {
+      final response = await _dio.get(
+        '/health',
+        options: Options(
+          validateStatus: (_) => true,
+          connectTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 8),
+        ),
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<RawResponse> rawPost(
+    String token,
+    String path,
+    Map<String, dynamic> body, {
+    required String idempotencyKey,
+  }) async {
+    try {
+      final response = await _dio.post(
+        path,
+        data: body,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Idempotency-Key': idempotencyKey,
+          },
+          validateStatus: (_) => true,
+          connectTimeout: const Duration(seconds: 8),
+          sendTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 20),
+        ),
+      );
+      final replay = response.headers.value('idempotent-replay') == 'true';
+      return RawResponse(
+        response.statusCode ?? 0,
+        response.data,
+        replay: replay,
+      );
+    } on DioException catch (e) {
+      if (e.response == null) {
+        throw NetworkUnavailable('Serverga ulanib bolmadi');
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getSyncSnapshot(String token) async {
+    try {
+      final response = await _dio.get(
+        '/sync/snapshot',
+        options: _authOptions(token),
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      throw _handleError(
+        e,
+        fallback: 'Sinxronlash snapshotini yuklashda xatolik',
+      );
     }
   }
 }

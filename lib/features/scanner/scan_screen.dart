@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 import 'package:wms_app/core/api_client.dart';
+import 'package:wms_app/core/offline/offline_controller.dart';
 import 'package:wms_app/features/auth/auth_provider.dart';
 import 'package:wms_app/features/scanner/scan_result_screen.dart';
 
@@ -148,6 +149,25 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           foundType = ScanResultType.product;
         }
       }
+    } on NetworkUnavailable catch (_) {
+      final store = await ref.read(offlineStoreProvider.future);
+      final local = await store.findContainerByBarcode(value);
+      if (local == null) {
+        _handling = false;
+        if (!mounted) return;
+        _showMessage("Internet yo'q va bu kod xotirada topilmadi");
+        await _resetScanning();
+        return;
+      }
+      if (local['quality_status'] != 'approved') {
+        _handling = false;
+        if (!mounted) return;
+        _showMessage("Internet yo'q: bu partiya tasdiqlanmagan");
+        await _resetScanning();
+        return;
+      }
+      found = local;
+      foundType = ScanResultType.container;
     } on ApiException catch (e) {
       _handling = false;
       if (!mounted) return;
